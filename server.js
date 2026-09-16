@@ -238,11 +238,18 @@ app.use('/audio/proxy', async (req, res) => {
 
     const headers = {
       'User-Agent':
-        req.headers['user-agent'] ||
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       Accept:
-        req.headers.accept ||
         'audio/ogg,audio/mpeg,audio/mp4,audio/*;q=0.9,*/*;q=0.8',
+    }
+
+    // 针对不同音源补 Referer
+    if (hostname.endsWith('kuwo.cn')) {
+      headers.Referer = 'https://www.kuwo.cn/'
+      headers.Origin = 'https://www.kuwo.cn'
+    } else if (hostname.endsWith('music.126.net')) {
+      headers.Referer = 'https://music.163.com/'
+      headers.Origin = 'https://music.163.com'
     }
 
     if (req.headers.range) {
