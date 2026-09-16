@@ -182,7 +182,130 @@ async function consturctServer(moduleDefs) {
   app.use(express.urlencoded({ extended: false, limit: '50mb' }))
 
   app.use(fileUpload())
+/**
+ * Audio Proxy
+ * Proxy publicly accessible audio URLs from allowed Kuwo hosts.
+ */
+app.use('/audio/proxy', async (req, res) => {
+  try {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return res.status(405).json({
+        code: 405,
+        msg: 'Method Not Allowed',
+      })
+    }
 
+    const rawUrl = req.query.url
+
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return res.status(400).json({
+        code: 400,
+        msg: 'Missing url parameter',
+      })
+    }
+
+    let target
+
+    try {
+      target = new URL(rawUrl)
+    } catch {
+      return res.status(400).json({
+        code: 400,
+        msg: 'Invalid audio URL',
+      })
+    }
+
+    // Only allow Kuwo audio hosts.
+    const hostname = target.hostname.toLowerCase()
+
+    const allowed =
+      hostname === 'kuwo.cn' ||
+      hostname.endsWith('.kuwo.cn')
+
+    if (!allowed) {
+      return res.status(403).json({
+        code: 403,
+        msg: 'Audio host not allowed',
+      })
+    }
+
+    const headers = {
+      'User-Agent':
+        req.headers['user-agent'] ||
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+      Accept:
+        req.headers.accept ||
+        'audio/ogg,audio/mpeg,audio/mp4,audio/*;q=0.9,*/*;q=0.8',
+    }
+
+    if (req.headers.range) {
+      headers.Range = req.headers.range
+    }
+
+    const upstream = await fetch(target.toString(), {
+      method: req.method,
+      headers,
+      redirect: 'follow',
+    })
+
+    const responseHeaders = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'etag',
+      'last-modified',
+    ]
+
+    for (const name of responseHeaders) {
+      const value = upstream.headers.get(name)
+
+      if (value) {
+        res.setHeader(name, value)
+      }
+    }
+
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      req.headers.origin || '*'
+    )
+
+    res.setHeader(
+      'Access-Control-Expose-Headers',
+      'Content-Length, Content-Range, Accept-Ranges, Content-Type, ETag, Last-Modified'
+    )
+
+    if (req.method === 'HEAD') {
+      return res.status(upstream.status).end()
+    }
+
+    if (!upstream.body) {
+      return res.status(502).json({
+        code: 502,
+        msg: 'Upstream audio has no response body',
+      })
+    }
+
+    res.status(upstream.status)
+
+    const { Readable } = require('stream')
+
+    Readable.fromWeb(upstream.body).pipe(res)
+
+  } catch (error) {
+    console.error('Audio proxy error:', error)
+
+    if (!res.headersSent) {
+      return res.status(502).json({
+        code: 502,
+        msg: 'Audio proxy request failed',
+        error: String(error),
+      })
+    }
+
+    res.end()
+  }
+})
   /**
    * Cache
    */
