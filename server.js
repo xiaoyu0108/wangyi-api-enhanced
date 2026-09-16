@@ -215,7 +215,12 @@ app.use('/audio/proxy', async (req, res) => {
       })
     }
 
-    // Only allow Kuwo audio hosts.
+    // 如果目标是 kuwo.cn，强制降回 http（Kuwo CDN 不支持 https）
+    if (target.hostname.endsWith('kuwo.cn') && target.protocol === 'https:') {
+      target.protocol = 'http:'
+    }
+
+    // 允许 Kuwo 和网易云官方音频域名
     const hostname = target.hostname.toLowerCase()
 
     const allowed =
