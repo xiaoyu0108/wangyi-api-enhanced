@@ -220,7 +220,9 @@ app.use('/audio/proxy', async (req, res) => {
 
     const allowed =
       hostname === 'kuwo.cn' ||
-      hostname.endsWith('.kuwo.cn')
+      hostname.endsWith('.kuwo.cn') ||
+      hostname === 'music.126.net' ||
+      hostname.endsWith('.music.126.net')
 
     if (!allowed) {
       return res.status(403).json({
